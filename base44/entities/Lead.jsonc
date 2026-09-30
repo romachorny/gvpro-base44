@@ -1,7 +1,7 @@
-// A visitor who pressed one of the two doors under the preview.
-// Anonymous visitors may create one and nothing else; only the studio (role admin) reads and edits.
-// The permissions live in the Base44 app settings, not in this file — the intended rules are
-// written out in MANIFEST.md and Cowork applies them.
+// A visitor who pressed "I want this app".
+// Anonymous visitors may create one and nothing else; only the studio (role admin) reads and
+// edits. The permissions live in the Base44 app settings, not in this file — the intended rules
+// are written out in MANIFEST.md and Cowork applies them.
 {
   "name": "Lead",
   "type": "object",
@@ -12,7 +12,7 @@
     },
     "business_name": {
       "type": "string",
-      "description": "The name typed into GVPro, the one on the preview"
+      "description": "The name typed into GVPro, the one on the demo app"
     },
     "whatsapp": {
       "type": "string",
@@ -22,30 +22,25 @@
       "type": "string",
       "description": "Anything the visitor wanted to add. Optional."
     },
-    "niche": {
+    "job": {
       "type": "string",
-      "description": "The trade on screen when the button was pressed",
-      "enum": ["barber", "clinic", "bakery", "yoga", "garage"]
+      "description": "What the business said it needs the app for",
+      "enum": ["booking", "orders", "menu", "catalogue", "team"]
     },
-    "style": {
+    "colour": {
       "type": "string",
-      "description": "The template on screen when the button was pressed",
-      "enum": ["fade", "pole", "salon", "grid", "neon", "poster", "zine", "mag", "kiosk", "bands", "mono", "gold"]
+      "description": "The accent they chose for their app",
+      "enum": ["blue", "teal", "green", "violet", "amber", "rose"]
+    },
+    "package": {
+      "type": "string",
+      "description": "Which of the three they picked",
+      "enum": ["start", "business", "pro"]
     },
     "lang": {
       "type": "string",
       "description": "The language the app was in",
-      "enum": ["en", "he", "ru", "ar"]
-    },
-    "want": {
-      "type": "string",
-      "description": "Which of the two doors: the site, or the app with booking and orders",
-      "enum": ["site", "app"]
-    },
-    "package": {
-      "type": "string",
-      "description": "Which of the three the visitor picked on the app screen. Empty when want=site.",
-      "enum": ["", "start", "business", "pro"]
+      "enum": ["he", "en", "ru", "ar"]
     },
     "status": {
       "type": "string",
@@ -59,5 +54,5 @@
       "default": "gvpro"
     }
   },
-  "required": ["name", "business_name", "whatsapp", "want"]
+  "required": ["name", "business_name", "whatsapp", "job"]
 }

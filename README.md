@@ -1,39 +1,39 @@
 # GVPro on Base44
 
-The port of **GVPro** — the app behind app.genvidpro.com — onto Base44, at
-https://gvpro.base44.app.
+A small Israeli business types its name, says what it needs an app for, and gets one — running,
+in its own colour, on the screen in front of it. At https://gvpro.base44.app.
 
-Type the name of a business, tap a trade, and it is already on the phone in front of you, with
-that name on it, while you type. Five niches × twelve styles = sixty pages, every one of them
-drawn by the real template engine inside an `iframe srcdoc`, never a picture of a site.
+Two screens. The first asks one question: bookings, orders, a menu, a catalogue, or a team on a
+rota. The second hands back the app: a phone with a working demo of exactly that job, plus the
+owner's own screen — today's count, the revenue, the next customer — because a customer app is
+easy to picture and opening your own phone at eight in the morning is not.
 
-**The app is the product.** The Site / App toggle over the carousel flips the same style from a
-site into an app running inside a phone: a tab bar along the bottom, a booking or order sheet
-that really works on fake slots, an install chip. Under it, the red full-width button is "I want
-an app" — it opens a screen that says what that app does for this trade and what the three
-packages cost before it asks anybody for a phone number. "I want this site" is the quieter
-button under it.
+Then one blue button: **I want this app**. Under it, the gift — the same app also works as a
+website on a computer, laptop and tablet. There is no site to choose and no button that offers
+one.
 
-Share what you are looking at as a link, either side of the toggle; the link carries the mode.
+Hebrew is the default and right-to-left is first class. English, Russian and Arabic are there
+too. Light, calm, one accent, no gradients: it looks like the apps on base44.com/templates,
+not like a studio showreel.
 
 **This repo is a delivery, not a deployment.** Every path here is the path the file has to take
 inside the Base44 app. [MANIFEST.md](MANIFEST.md) says which files to write, which scaffold
-files to change, what permissions the `Lead` entity needs, and what was deliberately left out
-of v1.
+files to change, what permissions the `Lead` entity needs, and what is deliberately left out.
 
 `app.genvidpro.com` and `genvidpro.com` stay exactly as they are, on Cloudflare. Nothing here
 touches them, and no file from here is meant to go near them.
 
-## What is ported as is
+## Every file is text
 
-`src/gvpro/tpl-engine.js` is `public/tpl-engine.js` from the live app, byte for byte — the
-sixty templates were not rewritten, not reformatted and not "modernised". A six-line header sits
-on top of it and an ES export sits under it; everything between is the original. Re-porting
-means copying the file again and re-applying that tail.
+No fonts, no photographs, no icons on disk — nothing binary to upload. Heebo arrives from
+Google Fonts by a `<link>`, the icons come from `lucide-react` which the Base44 scaffold
+already depends on, and the demo draws its own furniture in CSS. The whole app can be written
+in through the platform API.
 
-The same goes for the three generated language packs under `src/gvpro/lang/`, the 70 web fonts
-and the 140 photographs: they are the app's own, so the previews look like the previews people
-already know.
+## The demo saves nothing
+
+The slots really fill, the basket really adds up, the shift board really hands you a shift —
+and all of it lives in React state and dies with the tab. Every screen of the demo says so.
 
 ## Run it
 
@@ -41,7 +41,7 @@ already know.
 npm install
 npm run build
 npm run preview          # http://127.0.0.1:4173
-node tests/check.mjs     # the walk: 1521 px and 375 px, RTL, share link, form
+node tests/check.mjs     # the walk: 1521 px and 375 px, in Hebrew and English
 ```
 
 The build runs against the stock Base44 scaffold with no extra dependency. Without
@@ -49,5 +49,14 @@ The build runs against the stock Base44 scaffold with no extra dependency. Witho
 `tests/check.mjs` answers every API call locally, so it never writes a Lead anywhere.
 
 The screenshots the walk leaves in `tests/shots/` are meant to be looked at. A green run on its
-own proves nothing; it has caught a clipped slogan and an Arabic page full of English that both
-passed every assertion that existed at the time.
+own proves nothing: in v1 it caught a layout that had walked off the right edge while
+`scrollWidth` said it was fine, a chip a locator called visible under the iframe covering it,
+and a Hebrew app with an English price list that passed the script check aimed at the wrong
+element.
+
+## Where v1 went
+
+The template engine, the sixty templates, the seventy fonts and the hundred and forty
+photographs are gone from the working tree and still in this repo's history, at commit
+`46ad186` and its parents. GVPro used to pick a look; genvidpro.com already does that. This
+one hands over a working app.

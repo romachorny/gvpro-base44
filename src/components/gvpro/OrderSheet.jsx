@@ -1,26 +1,25 @@
 import { useState } from 'react';
+import { Check, X } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
-import { tr } from '@/gvpro/ui';
-import { dirOf, styleName } from '@/gvpro/engine';
-import { APPS_PAGE, APP_TIERS, normPhone, phoneOk, priceText, waLink, waTag } from '@/gvpro/studio';
-import { CloseIcon } from './Icons';
-import AppPitch from './AppPitch';
+import { tr, dirOf } from '@/gvpro/ui';
+import { colourVars } from '@/gvpro/theme';
+import { PACKAGES, WA_TAG, normPhone, phoneOk, priceText, waLink } from '@/gvpro/studio';
 
-/* Both doors end here. The site door opens straight onto the form; the app door stops first at
-   AppPitch, because the app is the product and a product needs saying out loud before a price.
-   Four things are asked; five more ride along by themselves — the niche, the style, the
-   language, which door was pressed and which package was chosen. It lands in the Lead entity,
-   and only then does the thank-you screen open the agent on WhatsApp. */
-export default function OrderSheet({ want, name, niche, style, lang, onClose }) {
+/* What happens after "I want this app": the packages, then the form, then the thank you.
+   The packages come first on purpose — somebody who has just played with the demo still does
+   not know what they would be buying, and a price with nothing under it is a number people
+   argue with. The form asks four things; five more ride along by themselves, because the job,
+   the colour, the package and the language are already on screen. */
+export default function OrderSheet({ name, job, colour, lang, onClose }) {
   const t = (k) => tr(lang, k);
-  /* the app door starts on the pitch; the site door has nothing to pitch */
-  const [step, setStep] = useState(want === 'app' ? 'pitch' : 'form');
+  const [step, setStep] = useState('packages');
   const [pkg, setPkg] = useState('business');
   const [form, setForm] = useState({ name: '', business_name: name || '', whatsapp: '', note: '' });
   const [err, setErr] = useState({});
   const [busy, setBusy] = useState(false);
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+  const tier = PACKAGES.find((p) => p.id === pkg);
 
   function validate() {
     const e = {};
@@ -41,11 +40,10 @@ export default function OrderSheet({ want, name, niche, style, lang, onClose }) 
         business_name: form.business_name.trim(),
         whatsapp: normPhone(form.whatsapp),
         note: form.note.trim(),
-        niche,
-        style,
+        job,
+        colour,
+        package: pkg,
         lang,
-        want,
-        package: want === 'app' ? pkg : '',
         status: 'new',
         source: 'gvpro',
       });
@@ -57,59 +55,57 @@ export default function OrderSheet({ want, name, niche, style, lang, onClose }) 
     }
   }
 
-  const tier = APP_TIERS.find((x) => x.id === pkg);
   const wa = waLink({
-    want,
-    opener: t(want === 'app' ? 'waApp' : 'waSite'),
+    opener: t('waOpener'),
     businessName: form.business_name.trim() || name,
-    niche,
-    style,
+    job,
+    colour,
+    pkg,
     lang,
-    pkg: want === 'app' ? pkg : '',
   });
 
   return (
-    <div className="gv-sheet" role="dialog" aria-modal="true" dir={dirOf(lang)} data-testid="order-sheet">
-      <div className="gv-sheet-in" style={{ position: 'relative' }}>
-        <button type="button" className="gv-rb gv-close" aria-label={t('close')} onClick={onClose}>
-          <CloseIcon />
+    <div className="gv-sheet" role="dialog" aria-modal="true" dir={dirOf(lang)} style={colourVars(colour)} data-testid="order-sheet">
+      <div className="gv-sheet-in">
+        <button type="button" className="gv-icon-btn gv-sheet-x" aria-label={t('close')} onClick={onClose} data-testid="sheet-close">
+          <X size={17} />
         </button>
 
-        {step === 'pitch' ? (
-          <AppPitch niche={niche} lang={lang} pkg={pkg} onPick={setPkg} onGo={() => setStep('form')} />
-        ) : null}
-
-        {step === 'thanks' ? (
-          <div data-testid="thanks">
-            <h2>{t('thanks')}</h2>
-            <p className="gv-note">{t('thanksNote')}</p>
-            <a className="gv-btn gv-primary" href={wa} target="_blank" rel="noopener noreferrer" data-testid="wa-continue" data-gvp-tag={waTag(want)}>
-              {t('openWa')}
-            </a>
-            {want === 'app' ? (
-              <>
-                <a className="gv-btn gv-white" style={{ marginTop: 8 }} href={APPS_PAGE} target="_blank" rel="noopener noreferrer" data-testid="apps-link">
-                  {t('seePackages')}
-                </a>
-                <p className="gv-note" style={{ marginTop: 8, textAlign: 'center' }}>{t('packages')}</p>
-              </>
-            ) : null}
+        {step === 'packages' ? (
+          <div data-testid="packages">
+            <h2>{t('pkgTitle')}</h2>
+            <div className="gv-pkgs">
+              {PACKAGES.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className="gv-pkg"
+                  aria-pressed={pkg === p.id}
+                  data-testid={'pkg-' + p.id}
+                  onClick={() => setPkg(p.id)}
+                >
+                  <span className="gv-pkg-top">
+                    <b>{t(p.key)}</b>
+                    <span>{(p.from ? t('pkgFrom') + ' ' : '') + priceText(p.price)}</span>
+                  </span>
+                  <em>{t(p.line)}</em>
+                </button>
+              ))}
+            </div>
+            <p className="gv-own" data-testid="own-line">{t('ownBase44')}</p>
+            <button type="button" className="gv-btn gv-primary" data-testid="pkg-go" onClick={() => setStep('form')}>
+              {t('pkgGo')}
+            </button>
           </div>
         ) : null}
 
         {step === 'form' ? (
           <form onSubmit={submit} noValidate>
-            <h2>{t(want === 'app' ? 'formAppTitle' : 'formSiteTitle')}</h2>
-            <p className="gv-note">{t('formNote')}</p>
+            <h2>{t('formTitle')}</h2>
+            <p className="gv-note" style={{ marginBottom: 14 }}>{t('formNote')}</p>
 
-            {want === 'app' && tier ? (
-              <button
-                type="button"
-                className="gv-pkg"
-                style={{ display: 'block', width: '100%', textAlign: 'start', border: 0, background: 'none', padding: 0, marginBottom: 12 }}
-                data-testid="picked-package"
-                onClick={() => setStep('pitch')}
-              >
+            {tier ? (
+              <button type="button" className="gv-pkg" style={{ marginBottom: 14 }} data-testid="picked-package" onClick={() => setStep('packages')}>
                 <span className="gv-pkg-top">
                   <b>{t('pkgPicked') + ': ' + t(tier.key)}</b>
                   <span>{(tier.from ? t('pkgFrom') + ' ' : '') + priceText(tier.price)}</span>
@@ -118,20 +114,21 @@ export default function OrderSheet({ want, name, niche, style, lang, onClose }) 
             ) : null}
 
             <label className="gv-field">
-              <span>{t('fName')}</span>
-              <input name="name" value={form.name} onChange={set('name')} autoComplete="name" data-testid="f-name" />
+              <span className="gv-label">{t('fName')}</span>
+              <input className="gv-input" name="name" value={form.name} onChange={set('name')} autoComplete="name" data-testid="f-name" />
               {err.name ? <b className="gv-err" data-testid="e-name">{err.name}</b> : null}
             </label>
 
             <label className="gv-field">
-              <span>{t('fBiz')}</span>
-              <input name="business_name" value={form.business_name} onChange={set('business_name')} data-testid="f-biz" />
+              <span className="gv-label">{t('fBiz')}</span>
+              <input className="gv-input" name="business_name" value={form.business_name} onChange={set('business_name')} data-testid="f-biz" />
               {err.business_name ? <b className="gv-err" data-testid="e-biz">{err.business_name}</b> : null}
             </label>
 
             <label className="gv-field">
-              <span>{t('fWa')}</span>
+              <span className="gv-label">{t('fWa')}</span>
               <input
+                className="gv-input"
                 name="whatsapp"
                 value={form.whatsapp}
                 onChange={set('whatsapp')}
@@ -145,21 +142,39 @@ export default function OrderSheet({ want, name, niche, style, lang, onClose }) 
             </label>
 
             <label className="gv-field">
-              <span>{t('fMsg')}</span>
-              <textarea name="note" value={form.note} onChange={set('note')} data-testid="f-note" />
+              <span className="gv-label">{t('fMsg')}</span>
+              <textarea className="gv-area" name="note" value={form.note} onChange={set('note')} data-testid="f-note" />
             </label>
 
             {/* what the visitor never has to type: it is on screen in front of them */}
-            <p className="gv-note" data-testid="auto-fields">
-              {[t(niche), styleName(style, lang), lang].join(' · ')}
+            <p className="gv-note" style={{ fontSize: 12.5, marginBottom: 10 }} data-testid="auto-fields">
+              {[t('job_' + job), t('colourTitle') + ': ' + colour, lang].join(' · ')}
             </p>
 
             {err.save ? <b className="gv-err" data-testid="e-save">{err.save}</b> : null}
 
-            <button type="submit" className="gv-btn gv-primary" style={{ marginTop: 8 }} disabled={busy} data-testid="f-send">
+            <button type="submit" className="gv-btn gv-primary" disabled={busy} data-testid="f-send">
               {busy ? t('sending') : t('send')}
             </button>
           </form>
+        ) : null}
+
+        {step === 'thanks' ? (
+          <div data-testid="thanks">
+            <div className="gv-done" style={{ paddingTop: 4 }}>
+              <span className="gv-tick"><Check size={22} /></span>
+              <b style={{ fontSize: 20 }}>{t('thanks')}</b>
+            </div>
+            <p className="gv-note" style={{ textAlign: 'center', marginBottom: 16 }}>{t('thanksNote')}</p>
+            <a
+              className="gv-btn gv-primary"
+              href={wa}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="wa-continue"
+              data-gvp-tag={WA_TAG}
+            >{t('openWa')}</a>
+          </div>
         ) : null}
       </div>
     </div>

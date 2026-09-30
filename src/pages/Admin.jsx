@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { dirOf, styleName } from '@/gvpro/engine';
-import { tr } from '@/gvpro/ui';
+import { dirOf, tr } from '@/gvpro/ui';
+import { colourOf } from '@/gvpro/theme';
 import Footer from '@/components/gvpro/Footer';
 import '@/gvpro.css';
 
 const STATUSES = ['new', 'contacted', 'won', 'lost'];
 const STATUS_KEY = { new: 'stNew', contacted: 'stContacted', won: 'stWon', lost: 'stLost' };
 
-/* The studio's own page: who asked, for what, and where it stands.
-   The door is guarded twice — the route only renders for a signed-in user with role admin, and
+/* The studio's own page: who asked, for what, in which colour, and where it stands.
+   The door is guarded twice — the page only renders for a signed-in user with role admin, and
    the Lead entity's own read rule refuses everyone else. The second one is the real lock; this
    one only keeps the page from flashing a table it cannot fill. */
 export default function Admin() {
   const { user, isAuthenticated, isLoadingAuth, navigateToLogin } = useAuth();
-  const lang = document.documentElement.lang || 'en';
+  const lang = document.documentElement.lang || 'he';
   const t = useCallback((k) => tr(lang, k), [lang]);
   const [rows, setRows] = useState(null);
   const [err, setErr] = useState('');
@@ -53,7 +53,7 @@ export default function Admin() {
   return (
     <div className="gv" dir={dirOf(lang)}>
       <div className="gv-admin">
-        <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 14 }}>{t('admin')}</h1>
+        <h1 style={{ fontSize: 22, marginBottom: 16 }}>{t('admin')}</h1>
         {err ? <p className="gv-err">{err}</p> : null}
         {rows && rows.length === 0 ? <p>{t('empty')}</p> : null}
         {rows && rows.length ? (
@@ -61,7 +61,7 @@ export default function Admin() {
             <thead>
               <tr>
                 <th>{t('thWhen')}</th><th>{t('thName')}</th><th>{t('thBiz')}</th><th>{t('thWa')}</th>
-                <th>{t('thWant')}</th><th>{t('thPkg')}</th><th>{t('thNiche')}</th><th>{t('thStyle')}</th><th>{t('thLang')}</th>
+                <th>{t('thJob')}</th><th>{t('thColour')}</th><th>{t('thPkg')}</th><th>{t('thLang')}</th>
                 <th>{t('thNote')}</th><th>{t('thStatus')}</th>
               </tr>
             </thead>
@@ -72,10 +72,11 @@ export default function Admin() {
                   <td>{r.name}</td>
                   <td>{r.business_name}</td>
                   <td dir="ltr"><a href={'https://wa.me/' + r.whatsapp} target="_blank" rel="noopener noreferrer">{r.whatsapp}</a></td>
-                  <td>{r.want}</td>
+                  <td>{r.job ? t('job_' + r.job) : ''}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {r.colour ? <><i className="gv-dot" style={{ background: colourOf(r.colour).hex }} /> {r.colour}</> : ''}
+                  </td>
                   <td>{r.package}</td>
-                  <td>{r.niche}</td>
-                  <td>{styleName(r.style, lang)}</td>
                   <td>{r.lang}</td>
                   <td style={{ maxWidth: 260 }}>{r.note}</td>
                   <td>

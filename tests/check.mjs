@@ -1,6 +1,7 @@
-/* The walk, not the tests: a browser opens the built app on a computer and on a phone and
-   looks at what a visitor would see. Zero-failure output means nothing on its own — the run
-   also drops screenshots next to itself, and those are meant to be looked at.
+/* The walk, not the tests: a browser opens the built app on a laptop and on a phone, in Hebrew
+   and in English, and clicks through what a visitor would click. Zero failures means nothing on
+   its own — the run also drops screenshots next to itself, and those are meant to be looked at.
+   Three defects in v1 passed every assertion and were caught by a picture.
 
    node tests/check.mjs          against http://127.0.0.1:4173 (npm run preview)
    BASE=http://host node tests/check.mjs
@@ -15,6 +16,7 @@ const SHOTS = resolve(HERE, 'shots');
 const BASE = process.env.BASE || 'http://127.0.0.1:4173';
 const DESKTOP = { width: 1521, height: 900 };
 const PHONE = { width: 375, height: 812 };
+const HEB = /[֐-׿]/;
 
 let failed = 0;
 function ok(name, cond, extra) {
@@ -26,75 +28,41 @@ function ok(name, cond, extra) {
 
 /* Nothing here reaches a real backend: every call the SDK makes is answered locally, so the
    walk never writes a Lead anywhere. */
-async function stubBackend(page) {
-  await page.route('**/api/**', async (route) => {
+async function newPage(browser, viewport) {
+  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2 });
+  const page = await ctx.newPage();
+  await page.route('**/api/**', (route) => {
     const url = route.request().url();
     if (/lead/i.test(url) && route.request().method() === 'POST') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'stub-lead', status: 'new' }) });
     }
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 'stub', public_settings: {} }) });
   });
-}
-
-async function newPage(browser, viewport) {
-  const ctx = await browser.newContext({ viewport, deviceScaleFactor: 2 });
-  const page = await ctx.newPage();
-  await stubBackend(page);
   return page;
 }
 
-/* The home screen hides its own overflow, so scrollWidth can never exceed clientWidth and a
-   check on it says "fine" about a layout that has walked off the right-hand edge. It did
-   exactly that — the phone pushed the rail's column wider than the screen and took the whole
-   page with it — and only a screenshot caught it. So measure real edges instead.
-
-   The rail is a horizontal scroller on purpose: eleven pages legitimately sit off to the right.
-   Those are skipped, and the page that IS on screen is checked against the viewport instead. */
+/* The page scrolls up and down, never sideways. Measuring scrollWidth is not enough — in v1 an
+   overflow:hidden parent hid a layout that had walked off the right edge — so measure the far
+   edge of everything actually on screen. */
 function noSideways(page) {
   return page.evaluate(() => {
-    const pv = document.querySelector('.gv-pv');
     const w = document.documentElement.clientWidth;
     let far = 0, near = 0, what = '';
-    document.querySelectorAll('.gv-home, .gv-home *').forEach((el) => {
-      if (pv && pv.contains(el) && el !== pv) return;          /* inside the rail: it scrolls */
+    document.querySelectorAll('.gv, .gv *').forEach((el) => {
       if (!el.getClientRects().length) return;
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) return;
-      if (r.right > far) { far = r.right; what = el.className || el.tagName; }
+      if (r.right > far) { far = r.right; what = String(el.className || el.tagName); }
       near = Math.min(near, r.left);
     });
-    /* the page the visitor is looking at has to fit too */
-    const live = document.querySelector('[data-active="true"]');
-    if (live) {
-      const r = live.getBoundingClientRect();
-      if (r.right > far) { far = r.right; what = 'the page on screen'; }
-      near = Math.min(near, r.left);
-      live.querySelectorAll('*').forEach((el) => {
-        if (!el.getClientRects().length) return;
-        const b = el.getBoundingClientRect();
-        if (b.width === 0 || b.height === 0) return;
-        if (b.right > far) { far = b.right; what = el.className || el.tagName; }
-        near = Math.min(near, b.left);
-      });
-    }
-    return { clientW: w, far: Math.ceil(far), near: Math.floor(near), what: String(what).slice(0, 60) };
+    return { clientW: w, far: Math.ceil(far), near: Math.floor(near), what: what.slice(0, 60) };
   });
 }
 
-/* Only the phone in front of the visitor is alive, and its two neighbours are mounted beside
-   it off screen. Every question about "the app" means the one on screen, so ask that one. */
-function live(page) { return page.locator('.gv-phone-slot[data-active="true"]'); }
-function liveFrame(page) {
-  return page.evaluate(() => {
-    const slot = document.querySelector('.gv-phone-slot[data-active="true"]');
-    const f = slot && slot.querySelector('iframe');
-    if (!f || !f.contentDocument) return null;
-    const d = f.contentDocument;
-    return { dir: d.documentElement.dir, lang: d.documentElement.lang, cls: d.body.className, text: (d.body.innerText || '').slice(0, 400) };
-  });
+function accentOf(page) {
+  return page.evaluate(() => getComputedStyle(document.querySelector('.gv')).getPropertyValue('--acc').trim());
 }
 
-/* fill the order form and send it */
 async function fillAndSend(page, wa) {
   await page.getByTestId('f-name').fill('Moshe');
   await page.getByTestId('f-wa').fill(wa);
@@ -108,189 +76,161 @@ async function run() {
   const browser = await chromium.launch();
 
   for (const [label, viewport] of [['desktop', DESKTOP], ['phone', PHONE]]) {
-    console.log('\n== ' + label + ' ' + viewport.width + '×' + viewport.height);
-    const page = await newPage(browser, viewport);
-    await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+    for (const lang of ['he', 'en']) {
+      const tag = label + '-' + lang;
+      console.log('\n== ' + tag + ' ' + viewport.width + '×' + viewport.height);
+      const page = await newPage(browser, viewport);
+      await page.goto(BASE + '/?lang=' + lang, { waitUntil: 'networkidle' });
 
-    /* ---- the app is what opens, not the site */
-    await live(page).getByTestId('app-phone').waitFor({ timeout: 20000 });
-    ok('the app is the view you land on', (await page.getByTestId('mode-app').getAttribute('aria-pressed')) === 'true');
-    ok('the red button is the app one', (await page.getByTestId('want-app').getAttribute('class') || '').includes('gv-primary'));
-    ok('the site is the quiet button under it', (await page.getByTestId('want-site').getAttribute('class') || '').includes('gv-white'));
-    ok('twelve phones to swipe through', (await page.locator('.gv-phone-slot').count()) === 12);
+      /* ---- screen one: the name and the one question */
+      await page.getByTestId('screen-app').waitFor({ timeout: 20000 });
+      await page.getByTestId('back-to-jobs').click();
+      await page.getByTestId('screen-pick').waitFor();
+      ok('five jobs to choose from', (await page.locator('.gv-jobs .gv-job').count()) === 5);
 
-    await page.waitForFunction(() => {
-      const slot = document.querySelector('.gv-phone-slot[data-active="true"]');
-      const f = slot && slot.querySelector('iframe');
-      return f && f.contentDocument && f.contentDocument.body && f.contentDocument.body.children.length > 2;
-    }, null, { timeout: 20000 });
+      const dir = await page.evaluate(() => document.documentElement.dir);
+      ok('the document reads the right way', dir === (lang === 'he' ? 'rtl' : 'ltr'), dir);
+      if (lang === 'he') ok('and it is written in Hebrew', HEB.test(await page.getByTestId('screen-pick').innerText()));
 
-    const box = await noSideways(page);
-    ok('nothing sticks out sideways', box.far <= box.clientW + 1 && box.near >= -1, 'right edge ' + box.far + ' of ' + box.clientW + ', left ' + box.near + ' — ' + box.what);
-    ok('four tabs along the bottom', (await live(page).getByTestId('app-tabs').locator('button').count()) === 4);
-    /* isVisible() is true for an element lying under an iframe, and that is exactly what
-       happened once. Ask what is actually on top at the chip's own centre. */
-    const chipOnTop = await page.evaluate(() => {
-      const slot = document.querySelector('.gv-phone-slot[data-active="true"]');
-      const chip = slot && slot.querySelector('[data-testid="install-chip"]');
-      if (!chip) return false;
-      const r = chip.getBoundingClientRect();
-      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-      return !!hit && (hit === chip || chip.contains(hit));
-    });
-    ok('the install chip is the thing you can actually see and press', chipOnTop);
+      await page.getByTestId('biz-name').fill(lang === 'he' ? 'המספרה של משה' : 'Moshe Barber');
+      await page.screenshot({ path: SHOTS + '/' + tag + '-1-pick.png' });
 
-    await page.getByTestId('biz-name').fill('Moshe Barber');
-    await page.waitForTimeout(1400);
-    const inPhone = await liveFrame(page);
-    ok('the typed name is on the app', !!inPhone && /Moshe Barber/.test(inPhone.text));
-    await page.screenshot({ path: SHOTS + '/' + label + '-app.png' });
+      /* ---- screen two: the app itself */
+      await page.getByTestId('job-booking').click();
+      await page.getByTestId('phone').waitFor();
+      await page.waitForTimeout(400);
+      ok('the business name is on the app', (await page.getByTestId('phone-name').innerText()).length > 2);
+      ok('three tabs at the bottom', (await page.getByTestId('phone-tabs').locator('button').count()) === 3);
+      ok('the gift line is under the button', (await page.getByTestId('gift-line').innerText()).length > 10);
 
-    /* ---- the demo really books */
-    await live(page).getByTestId('tab-do').click();
-    await live(page).getByTestId('demo-sheet').waitFor();
-    await live(page).getByTestId('demo-item-1').click();
-    await live(page).getByTestId('demo-slot-12:00').click();
-    await live(page).getByTestId('demo-confirm').click();
-    await live(page).getByTestId('demo-mine').waitFor();
-    ok('the demo booking lands in "my bookings"', (await live(page).getByTestId('demo-mine').innerText()).includes('12:00'));
-    await page.screenshot({ path: SHOTS + '/' + label + '-demo.png' });
-    await live(page).getByTestId('tab-home').click();
+      /* no word "site" anywhere a finger lands */
+      const buttonWords = await page.evaluate(() => Array.from(document.querySelectorAll('.gv button, .gv a'))
+        .map((b) => (b.innerText || '').trim()).filter(Boolean).join(' | ').toLowerCase());
+      ok('no button offers a site', !/\bsite\b|\bאתר\b|\bсайт\b/.test(buttonWords), buttonWords.slice(0, 120));
 
-    /* ---- the other kind of trade orders instead of booking */
-    await page.getByTestId('niche-bakery').click();
-    await page.waitForTimeout(900);
-    await live(page).getByTestId('tab-do').click();
-    await live(page).getByTestId('demo-item-0').click();
-    await live(page).getByTestId('demo-item-0').click();
-    const total = await live(page).locator('.gv-ap-total').innerText();
-    ok('a bakery counts a basket instead of slots', /[1-9]/.test(total.replace(/[^\d]/g, '')), total);
-    ok('a bakery has no time slots', (await live(page).locator('.gv-ap-slots').count()) === 0);
-    await live(page).getByTestId('demo-confirm').click();
-    await live(page).getByTestId('demo-mine').waitFor();
-    ok('the demo order lands in "my orders"', (await live(page).getByTestId('demo-mine').innerText()).length > 0);
-    await page.getByTestId('niche-barber').click();
-    await page.waitForTimeout(600);
+      let box = await noSideways(page);
+      ok('nothing sticks out sideways', box.far <= box.clientW + 1 && box.near >= -1, 'right edge ' + box.far + ' of ' + box.clientW + ' — ' + box.what);
 
-    /* ---- the site side still works */
-    await page.getByTestId('mode-site').click();
-    await page.waitForTimeout(1200);
-    ok('twelve styles in site mode', (await page.locator('.gv-card').count()) === 12);
-    ok('four pages of three', (await page.getByTestId('rail-dots').locator('i').count()) === 4);
-    const boxSite = await noSideways(page);
-    ok('nothing sticks out sideways in site mode', boxSite.far <= boxSite.clientW + 1 && boxSite.near >= -1, 'right edge ' + boxSite.far + ' of ' + boxSite.clientW + ' — ' + boxSite.what);
-    await page.screenshot({ path: SHOTS + '/' + label + '-site.png' });
-    await page.getByTestId('mode-app').click();
-    await page.waitForTimeout(600);
+      /* ---- the colour really recolours */
+      const before = await accentOf(page);
+      await page.getByTestId('colour-amber').click();
+      await page.waitForTimeout(250);
+      const after = await accentOf(page);
+      const phoneAcc = await page.evaluate(() => getComputedStyle(document.querySelector('[data-testid="phone"]')).getPropertyValue('--acc').trim());
+      ok('a swatch repaints the page', before !== after && after.toUpperCase() === '#B45309', before + ' -> ' + after);
+      ok('and the demo inside the phone with it', phoneAcc.toUpperCase() === '#B45309', phoneAcc);
+      await page.getByTestId('colour-blue').click();
 
-    /* ---- "I want an app" says what it is before it asks for anything */
-    await page.getByTestId('want-app').click();
-    await page.getByTestId('app-pitch').waitFor();
-    ok('the app screen comes before the form', (await page.getByTestId('f-name').count()) === 0);
-    ok('three packages', (await page.locator('.gv-pkg button').count()) === 3);
-    ok('the prices are the three from the site', (await page.getByTestId('app-pitch').innerText()).replace(/\s/g, '').includes('2,900'));
-    ok('whose account it is, said out loud', /Base44/.test(await page.getByTestId('pitch-own').innerText()));
-    await page.screenshot({ path: SHOTS + '/' + label + '-pitch.png' });
+      /* ---- booking: service, day, slot, confirm */
+      await page.getByTestId('demo-booking').waitFor();
+      await page.getByTestId('svc-1').click();
+      await page.getByTestId('week-strip').waitFor();
+      await page.getByTestId('day-1').click();
+      await page.getByTestId('slot-13:30').click();
+      await page.getByTestId('demo-confirm').click();
+      await page.getByTestId('demo-done').waitFor();
+      ok('a booking really goes through', (await page.getByTestId('demo-done').innerText()).includes('13:30'));
+      await page.screenshot({ path: SHOTS + '/' + tag + '-2-app.png' });
 
-    await page.getByTestId('pkg-pro').click();
-    await page.getByTestId('pitch-go').click();
-    await page.getByTestId('f-send').click();
-    ok('the empty form refuses', await page.getByTestId('e-name').isVisible() && await page.getByTestId('e-wa').isVisible());
-    await page.getByTestId('f-wa').fill('12');
-    await page.getByTestId('f-name').fill('Moshe');
-    await page.getByTestId('f-send').click();
-    ok('a bad number is refused', await page.getByTestId('e-wa').isVisible());
-    ok('the chosen package is carried into the form', (await page.getByTestId('picked-package').innerText()).includes('9,900'));
-    await page.screenshot({ path: SHOTS + '/' + label + '-form.png' });
+      /* ---- and lands on the owner's screen */
+      await page.getByTestId('tab-owner').click();
+      await page.getByTestId('demo-owner').waitFor();
+      const count = parseInt(await page.getByTestId('owner-count').innerText(), 10);
+      ok('the owner sees it', count === 10, String(count));
+      ok('and a revenue number', /\d/.test(await page.getByTestId('owner-revenue').innerText()));
+      ok('with the booking listed under it', (await page.getByTestId('owner-list').innerText()).includes('13:30'));
+      await page.screenshot({ path: SHOTS + '/' + tag + '-3-owner.png' });
 
-    const appHref = await fillAndSend(page, '050-123-4567');
-    ok('the thank you opens the business agent', /wa\.me\/972539760820/.test(appHref), appHref);
-    ok('the app tag rides along', /gvpro_app/.test(appHref));
-    ok('so does the package', /package pro/.test(appHref), appHref);
-    ok('the app door links the packages page', (await page.getByTestId('apps-link').getAttribute('href')) === 'https://genvidpro.com/apps');
-    await page.screenshot({ path: SHOTS + '/' + label + '-thanks.png' });
-    await page.locator('.gv-close').first().click();
+      /* ---- the other job: a basket that counts and a checkout */
+      await page.getByTestId('back-to-jobs').click();
+      await page.getByTestId('job-orders').click();
+      await page.getByTestId('demo-orders').waitFor();
+      await page.getByTestId('add-0').click();
+      await page.getByTestId('add-0').click();
+      await page.getByTestId('add-2').click();
+      const total = await page.getByTestId('cart-total').innerText();
+      ok('the basket adds up', total.replace(/[^\d]/g, '') === String(34 * 2 + 46), total);
+      await page.getByTestId('how-delivery').click();
+      await page.getByTestId('demo-confirm').click();
+      await page.getByTestId('demo-done').waitFor();
+      ok('an order really goes through', (await page.getByTestId('demo-done').innerText()).includes('114'));
 
-    /* ---- the site door has nothing to pitch and goes straight to the form */
-    await page.getByTestId('want-site').click();
-    await page.getByTestId('order-sheet').waitFor();
-    ok('the site door opens straight onto the form', (await page.getByTestId('app-pitch').count()) === 0);
-    const siteHref = await fillAndSend(page, '0501234567');
-    ok('the site tag rides along', /gvpro_site/.test(siteHref));
-    ok('no package on a site lead', !/package /.test(siteHref), siteHref);
-    await page.locator('.gv-close').first().click();
+      /* ---- the shift board is a board you can act on */
+      await page.getByTestId('back-to-jobs').click();
+      await page.getByTestId('job-team').click();
+      await page.getByTestId('demo-team').waitFor();
+      await page.getByTestId('shift-1|pm').click();
+      ok('an open shift can be taken', (await page.getByTestId('shift-1|pm').getAttribute('class')).includes('gv-yours'));
 
-    ok('the Base44 badge is on the page', (await page.getByTestId('base44-badge').getAttribute('href')) === 'https://base44.com');
+      /* ---- menu and catalogue open at all */
+      await page.getByTestId('back-to-jobs').click();
+      await page.getByTestId('job-menu').click();
+      await page.getByTestId('demo-menu').waitFor();
+      await page.getByTestId('dish-main-0').click();
+      ok('a dish tells you about itself', (await page.getByTestId('demo-menu').innerText()).split('\n').length > 8);
 
-    await page.context().close();
+      await page.getByTestId('back-to-jobs').click();
+      await page.getByTestId('job-catalogue').click();
+      await page.getByTestId('demo-catalogue').waitFor();
+      ok('a catalogue says what is not in stock', (await page.getByTestId('demo-catalogue').innerText()).length > 20);
+
+      /* ---- the packages, then the form, then the thank you */
+      await page.getByTestId('back-to-jobs').click();
+      await page.getByTestId('job-booking').click();
+      await page.getByTestId('want-app').click();
+      await page.getByTestId('packages').waitFor();
+      ok('the packages come before the form', (await page.getByTestId('f-name').count()) === 0);
+      ok('three of them', (await page.locator('.gv-pkgs .gv-pkg').count()) === 3);
+      ok('the prices are the three from the site', (await page.getByTestId('packages').innerText()).replace(/\s/g, '').includes('2,900'));
+      ok('whose account it is, said out loud', /Base44/.test(await page.getByTestId('own-line').innerText()));
+      await page.screenshot({ path: SHOTS + '/' + tag + '-4-packages.png' });
+
+      await page.getByTestId('pkg-pro').click();
+      await page.getByTestId('pkg-go').click();
+      await page.getByTestId('f-send').click();
+      ok('the empty form refuses', await page.getByTestId('e-name').isVisible() && await page.getByTestId('e-wa').isVisible());
+      await page.getByTestId('f-name').fill('Moshe');
+      await page.getByTestId('f-wa').fill('12');
+      await page.getByTestId('f-send').click();
+      ok('a bad number is refused', await page.getByTestId('e-wa').isVisible());
+      ok('the chosen package came along', (await page.getByTestId('picked-package').innerText()).includes('9,900'));
+      await page.screenshot({ path: SHOTS + '/' + tag + '-5-form.png' });
+
+      const href = await fillAndSend(page, '050-123-4567');
+      ok('the thank you opens the business agent', /wa\.me\/972539760820/.test(href), href);
+      ok('tagged gvpro_app', /gvpro_app/.test(href));
+      ok('with the job, the colour and the package on it', /job booking/.test(href) && /colour blue/.test(href) && /package pro/.test(href), href);
+      await page.screenshot({ path: SHOTS + '/' + tag + '-6-thanks.png' });
+      await page.getByTestId('sheet-close').click();
+
+      ok('the Base44 badge is on the page', (await page.getByTestId('base44-badge').getAttribute('href')) === 'https://base44.com');
+
+      box = await noSideways(page);
+      ok('still nothing sideways at the end', box.far <= box.clientW + 1 && box.near >= -1, box.far + ' of ' + box.clientW + ' — ' + box.what);
+
+      await page.context().close();
+    }
   }
 
-  /* ----- truly RTL, on the shell, in the app layer and inside the templates */
-  for (const lang of ['he', 'ar']) {
-    console.log('\n== RTL ' + lang);
-    const page = await newPage(browser, PHONE);
-    await page.goto(BASE + '/?n=' + encodeURIComponent(lang === 'he' ? 'מספרה' : 'صالون') + '&niche=barber&tpl=neon&lang=' + lang + '&mode=app', { waitUntil: 'networkidle' });
-    await live(page).getByTestId('app-phone').waitFor({ timeout: 20000 });
-    await page.waitForTimeout(1800);
-
-    ok('the document turns round', (await page.evaluate(() => document.documentElement.dir)) === 'rtl');
-    /* innerText, not textContent: the engine ships inline helper scripts and their source
-       is not what a visitor reads */
-    const frameDir = await liveFrame(page);
-    ok('the template turns round too', frameDir && frameDir.dir === 'rtl', JSON.stringify(frameDir && frameDir.dir));
-    ok('the template speaks the language', frameDir && frameDir.lang === lang);
-    const script = lang === 'he' ? /[֐-׿]/ : /[؀-ۿ]/;
-    ok('the template is written in that script, not English', frameDir && script.test(frameDir.text), (frameDir && frameDir.text || '').slice(0, 80));
-    ok('so is the app layer over it', script.test(await live(page).getByTestId('app-tabs').innerText()));
-
-    await live(page).getByTestId('tab-do').click();
-    await live(page).getByTestId('demo-sheet').waitFor();
-    ok('and so is the booking sheet', script.test(await live(page).getByTestId('demo-sheet').innerText()));
-    /* Not the sheet as a whole: our own heading is Hebrew whatever happens, and it hid a price
-       list still written in English because the pack landed after the first render. Ask the
-       rows and the tab, which are the engine's own words. */
-    ok('the price list speaks it too', script.test(await live(page).locator('.gv-ap-nm').first().innerText()),
-      await live(page).locator('.gv-ap-nm').first().innerText());
-    ok('and the tab that opens it', script.test(await live(page).getByTestId('tab-do').innerText()),
-      await live(page).getByTestId('tab-do').innerText());
-    ok('and the name of the style under the rail', script.test(await page.locator('.gv-swipe span').innerText()),
-      await page.locator('.gv-swipe span').innerText());
-
-    const box = await noSideways(page);
-    ok('nothing sticks out sideways', box.far <= box.clientW + 1 && box.near >= -1, 'right edge ' + box.far + ' of ' + box.clientW + ', left ' + box.near + ' — ' + box.what);
-    await page.screenshot({ path: SHOTS + '/phone-' + lang + '.png' });
-
-    await live(page).getByTestId('tab-home').click();
-    await page.getByTestId('want-app').click();
-    await page.getByTestId('app-pitch').waitFor();
-    ok('and the app screen', script.test(await page.getByTestId('app-pitch').innerText()));
-    if (lang === 'he') await page.screenshot({ path: SHOTS + '/phone-he-pitch.png' });
-    await page.context().close();
-  }
-
-  /* ----- a share link restores exactly that view, app side and site side */
+  /* ----- a share link restores exactly that view */
   {
     console.log('\n== share link');
     const page = await newPage(browser, PHONE);
-    await page.goto(BASE + '/?n=' + encodeURIComponent('Sara Bakery') + '&niche=bakery&tpl=zine&lang=ru&mode=app', { waitUntil: 'networkidle' });
-    await live(page).getByTestId('app-phone').waitFor({ timeout: 20000 });
-    await page.waitForTimeout(1500);
+    await page.goto(BASE + '/?n=' + encodeURIComponent('מאפיית שרה') + '&job=orders&c=rose&lang=he&tab=owner', { waitUntil: 'networkidle' });
+    await page.getByTestId('phone').waitFor({ timeout: 20000 });
+    await page.waitForTimeout(400);
 
-    ok('the name comes back', (await page.getByTestId('biz-name').inputValue()) === 'Sara Bakery');
-    ok('the trade comes back', (await page.getByTestId('niche-bakery').getAttribute('aria-pressed')) === 'true');
-    ok('the language comes back', (await page.evaluate(() => document.documentElement.lang)) === 'ru');
-    ok('the app mode comes back', (await page.getByTestId('mode-app').getAttribute('aria-pressed')) === 'true');
-    const shown = await liveFrame(page);
-    ok('the style comes back', !!shown && /\bt-zine\b/.test(shown.cls), shown && shown.cls);
+    ok('the name comes back', (await page.getByTestId('biz-name').inputValue()) === 'מאפיית שרה');
+    ok('the job comes back', (await page.getByTestId('phone-tabs').locator('button').nth(1).getAttribute('aria-pressed')) === 'false');
+    ok('the colour comes back', (await accentOf(page)).toUpperCase() === '#BE123C');
+    ok('the language comes back', (await page.evaluate(() => document.documentElement.lang)) === 'he');
+    ok('the open tab comes back', (await page.getByTestId('tab-owner').getAttribute('aria-pressed')) === 'true');
+    ok('and the owner screen is really the one showing', await page.getByTestId('demo-owner').isVisible());
+
     const back = await page.evaluate(() => location.search);
-    ok('the address bar holds the view', /niche=bakery/.test(back) && /tpl=zine/.test(back) && /lang=ru/.test(back) && /mode=app/.test(back), back);
+    ok('the address bar holds the view', /job=orders/.test(back) && /c=rose/.test(back) && /tab=owner/.test(back), back);
+    await page.screenshot({ path: SHOTS + '/phone-share.png' });
     await page.context().close();
-
-    const page2 = await newPage(browser, PHONE);
-    await page2.goto(BASE + '/?n=Sara&niche=bakery&tpl=zine&lang=en&mode=site', { waitUntil: 'networkidle' });
-    await page2.getByTestId('viewer').waitFor({ timeout: 20000 });
-    ok('a site link opens the style at full size', (await page2.getByTestId('mode-site').getAttribute('aria-pressed')) === 'true');
-    await page2.context().close();
   }
 
   await browser.close();
