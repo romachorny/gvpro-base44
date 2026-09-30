@@ -42,6 +42,11 @@
       "description": "Which of the two doors: the site, or the app with booking and orders",
       "enum": ["site", "app"]
     },
+    "package": {
+      "type": "string",
+      "description": "Which of the three the visitor picked on the app screen. Empty when want=site.",
+      "enum": ["", "start", "business", "pro"]
+    },
     "status": {
       "type": "string",
       "description": "Where the lead stands. Only the studio changes it.",

@@ -21,7 +21,10 @@ export default function Home() {
   const [niche, setNiche] = useState(shared.niche);
   const [style, setStyle] = useState(shared.style);
   const [lang, setLang] = useState(shared.lang || guessLang());
-  const [viewer, setViewer] = useState(shared.shared ? shared.style : null);
+  const [mode, setMode] = useState(shared.mode);
+  /* a shared site link opens the style at full size; a shared app link opens the phone itself,
+     which the rail is already showing, so there is nothing to open over it */
+  const [viewer, setViewer] = useState(shared.shared && shared.mode === 'site' ? shared.style : null);
   const [order, setOrder] = useState(null);      /* 'site' | 'app' | null */
   const [toast, setToast] = useState('');
 
@@ -51,8 +54,8 @@ export default function Home() {
 
   /* The address bar always holds the view, so a reload, a bookmark and a copied URL all agree. */
   useEffect(() => {
-    syncAddressBar({ name: name.trim(), niche, style, lang });
-  }, [name, niche, style, lang]);
+    syncAddressBar({ name: name.trim(), niche, style, lang, mode });
+  }, [name, niche, style, lang, mode]);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -61,7 +64,7 @@ export default function Home() {
   }, [toast]);
 
   async function share() {
-    const url = shareLink({ name: name.trim(), niche, style, lang });
+    const url = shareLink({ name: name.trim(), niche, style, lang, mode });
     const text = shownName;
     if (navigator.share) {
       try { await navigator.share({ title: 'GVPro', text, url }); return; } catch (e) { /* cancelled */ }
@@ -74,13 +77,15 @@ export default function Home() {
     }
   }
 
+  /* The app is the product. It gets the red full-width button; the site is the quieter offer
+     under it, and pressing either one opens the same sheet at a different first step. */
   const doors = (
     <div className="gv-cta">
-      <button type="button" className="gv-btn gv-primary" data-testid="want-site" onClick={() => setOrder('site')}>
-        {t('wantSite')}
-      </button>
-      <button type="button" className="gv-btn gv-second" data-testid="want-app" onClick={() => setOrder('app')}>
+      <button type="button" className="gv-btn gv-primary" data-testid="want-app" onClick={() => setOrder('app')}>
         {t('wantApp')}
+      </button>
+      <button type="button" className="gv-btn gv-white" data-testid="want-site" onClick={() => setOrder('site')}>
+        {t('wantSite')}
       </button>
     </div>
   );
@@ -128,14 +133,25 @@ export default function Home() {
           />
         </div>
 
+        <div className="gv-mode" role="group" aria-label={t('modeHint')} data-testid="mode-toggle">
+          <button type="button" aria-pressed={mode === 'site'} data-testid="mode-site" onClick={() => setMode('site')}>
+            {t('modeSite')}
+          </button>
+          <button type="button" aria-pressed={mode === 'app'} data-testid="mode-app" onClick={() => setMode('app')}>
+            {t('modeApp')}
+          </button>
+        </div>
+
         <StyleRail
           name={shownName}
           niche={niche}
           lang={lang}
+          mode={mode}
           selected={style}
           hint={t('swipe')}
           onSelect={setStyle}
           onOpen={(s) => setViewer(s)}
+          onWantApp={() => setOrder('app')}
         />
 
         {doors}

@@ -15,7 +15,7 @@ export default function Slogan({ text }) {
       const max = parseFloat(getComputedStyle(el).fontSize) || 26;
       let fs = max;
       const wide = () => tx.scrollWidth > el.clientWidth + 1;
-      while (wide() && fs > 12) { fs -= 1; el.style.fontSize = fs + 'px'; }
+      while (wide() && fs > 9) { fs -= 1; el.style.fontSize = fs + 'px'; }
     };
     fit();
     const ro = new ResizeObserver(fit);

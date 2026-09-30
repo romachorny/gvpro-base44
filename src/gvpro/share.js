@@ -1,12 +1,14 @@
 /* The share link is the whole state, and there is no database behind it.
-   https://gvpro.base44.app/?n=<name>&niche=<niche>&tpl=<style>&lang=<lang>
+   https://gvpro.base44.app/?n=<name>&niche=<niche>&tpl=<style>&lang=<lang>&mode=<site|app>
    Opening that link puts the visitor on exactly the view the sender was looking at.
    The old app had to POST the state to /api/save and hand out a short code; four query
    parameters do the same job with nothing to store and nothing to rate-limit. */
 
 import { NICHES, STYLES, LANGS, ORDER } from './engine.js';
 
-export const DEFAULTS = { name: '', niche: 'barber', style: ORDER[0], lang: 'en' };
+export const MODES = ['site', 'app'];
+/* The app is the point now, so a link with no mode on it opens the app. */
+export const DEFAULTS = { name: '', niche: 'barber', style: ORDER[0], lang: 'en', mode: 'app' };
 const MAX_NAME = 60;
 
 function pick(value, allowed, fallback) {
@@ -31,23 +33,25 @@ export function guessLang() {
 
 export function readShare(search) {
   const q = new URLSearchParams(search == null ? window.location.search : search);
-  const shared = q.has('n') || q.has('niche') || q.has('tpl') || q.has('lang');
+  const shared = q.has('n') || q.has('niche') || q.has('tpl') || q.has('lang') || q.has('mode');
   return {
     shared,
     name: String(q.get('n') || '').slice(0, MAX_NAME),
     niche: pick(q.get('niche'), NICHES, DEFAULTS.niche),
     style: pick(q.get('tpl'), STYLES, DEFAULTS.style),
     lang: pick(q.get('lang'), LANGS, ''),
+    mode: pick(q.get('mode'), MODES, DEFAULTS.mode),
   };
 }
 
-export function shareLink({ name, niche, style, lang }, origin) {
+export function shareLink({ name, niche, style, lang, mode }, origin) {
   const base = (origin || window.location.origin) + '/';
   const q = new URLSearchParams();
   if (name) q.set('n', String(name).slice(0, MAX_NAME));
   q.set('niche', niche);
   q.set('tpl', style);
   q.set('lang', lang);
+  q.set('mode', mode || DEFAULTS.mode);
   return base + '?' + q.toString();
 }
 

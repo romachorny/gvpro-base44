@@ -61,7 +61,7 @@ export default function Admin() {
             <thead>
               <tr>
                 <th>{t('thWhen')}</th><th>{t('thName')}</th><th>{t('thBiz')}</th><th>{t('thWa')}</th>
-                <th>{t('thWant')}</th><th>{t('thNiche')}</th><th>{t('thStyle')}</th><th>{t('thLang')}</th>
+                <th>{t('thWant')}</th><th>{t('thPkg')}</th><th>{t('thNiche')}</th><th>{t('thStyle')}</th><th>{t('thLang')}</th>
                 <th>{t('thNote')}</th><th>{t('thStatus')}</th>
               </tr>
             </thead>
@@ -73,6 +73,7 @@ export default function Admin() {
                   <td>{r.business_name}</td>
                   <td dir="ltr"><a href={'https://wa.me/' + r.whatsapp} target="_blank" rel="noopener noreferrer">{r.whatsapp}</a></td>
                   <td>{r.want}</td>
+                  <td>{r.package}</td>
                   <td>{r.niche}</td>
                   <td>{styleName(r.style, lang)}</td>
                   <td>{r.lang}</td>
