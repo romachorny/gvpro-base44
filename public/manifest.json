@@ -1,9 +1,11 @@
 {
-  "name": "GVPro — your idea, your app",
+  "name": "GVPro",
   "short_name": "GVPro",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#07060A",
-  "theme_color": "#07060A",
-  "description": "Type your business name and see your site on a phone in seconds."
+  "background_color": "#F8FAFD",
+  "theme_color": "#0038B8",
+  "lang": "he",
+  "dir": "rtl",
+  "description": "\u05d4\u05d0\u05e4\u05dc\u05d9\u05e7\u05e6\u05d9\u05d4 \u05e9\u05dc \u05d4\u05e2\u05e1\u05e7 \u05e9\u05dc\u05da, \u05d1\u05d3\u05e7\u05d4."
 }

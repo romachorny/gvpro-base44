@@ -1,22 +1,23 @@
-/* The share link is the whole state, and there is no database behind it.
-   https://gvpro.base44.app/?n=<name>&niche=<niche>&tpl=<style>&lang=<lang>&mode=<site|app>
-   Opening that link puts the visitor on exactly the view the sender was looking at.
-   The old app had to POST the state to /api/save and hand out a short code; four query
-   parameters do the same job with nothing to store and nothing to rate-limit. */
+/* The share link is the whole view, and there is no database behind it.
+   https://gvpro.base44.app/?n=<name>&job=<job>&c=<colour>&lang=<lang>&tab=<tab>
+   Opening it puts the visitor on exactly what the sender was looking at, down to which tab of
+   the demo was open. Nothing to store, nothing to rate-limit, nothing to expire. */
 
-import { NICHES, STYLES, LANGS, ORDER } from './engine.js';
+import { JOBS } from './jobs.js';
+import { COLOURS, DEFAULT_COLOUR } from './theme.js';
+import { LANGS } from './ui.js';
 
-export const MODES = ['site', 'app'];
-/* The app is the point now, so a link with no mode on it opens the app. */
-export const DEFAULTS = { name: '', niche: 'barber', style: ORDER[0], lang: 'en', mode: 'app' };
+export const TABS = ['home', 'job', 'owner'];
+export const DEFAULTS = { name: '', job: 'booking', colour: DEFAULT_COLOUR, lang: 'he', tab: 'job' };
 const MAX_NAME = 60;
+const COLOUR_IDS = COLOURS.map((c) => c.id);
 
 function pick(value, allowed, fallback) {
   const v = String(value || '').trim();
   return allowed.indexOf(v) >= 0 ? v : fallback;
 }
 
-/* The browser's own language, the way the old app guessed it: Hebrew is the house default. */
+/* Hebrew unless the browser clearly says otherwise: the customer is in Israel. */
 export function guessLang() {
   const list = (navigator.languages && navigator.languages.length)
     ? navigator.languages
@@ -33,29 +34,29 @@ export function guessLang() {
 
 export function readShare(search) {
   const q = new URLSearchParams(search == null ? window.location.search : search);
-  const shared = q.has('n') || q.has('niche') || q.has('tpl') || q.has('lang') || q.has('mode');
+  const shared = ['n', 'job', 'c', 'lang', 'tab'].some((k) => q.has(k));
   return {
     shared,
     name: String(q.get('n') || '').slice(0, MAX_NAME),
-    niche: pick(q.get('niche'), NICHES, DEFAULTS.niche),
-    style: pick(q.get('tpl'), STYLES, DEFAULTS.style),
+    job: pick(q.get('job'), JOBS, DEFAULTS.job),
+    colour: pick(q.get('c'), COLOUR_IDS, DEFAULTS.colour),
     lang: pick(q.get('lang'), LANGS, ''),
-    mode: pick(q.get('mode'), MODES, DEFAULTS.mode),
+    tab: pick(q.get('tab'), TABS, DEFAULTS.tab),
   };
 }
 
-export function shareLink({ name, niche, style, lang, mode }, origin) {
+export function shareLink({ name, job, colour, lang, tab }, origin) {
   const base = (origin || window.location.origin) + '/';
   const q = new URLSearchParams();
   if (name) q.set('n', String(name).slice(0, MAX_NAME));
-  q.set('niche', niche);
-  q.set('tpl', style);
+  q.set('job', job);
+  q.set('c', colour);
   q.set('lang', lang);
-  q.set('mode', mode || DEFAULTS.mode);
+  q.set('tab', tab || DEFAULTS.tab);
   return base + '?' + q.toString();
 }
 
-/* Same shape in the address bar as in the link, so a reload never loses the view. */
+/* The address bar holds the view too, so a reload and a copied URL never disagree. */
 export function syncAddressBar(state) {
   try {
     window.history.replaceState(window.history.state, '', shareLink(state));
