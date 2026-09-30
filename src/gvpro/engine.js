@@ -29,6 +29,14 @@ const loaders = {
   ar: () => import('./lang/ar.js'),
 };
 const pending = {};
+/* A pack arrives after the first paint, and whatever read the old one has to be told.
+   Without this, an iframe repainted in Hebrew while the React text beside it — the price list
+   in the demo, the tab's own word, the style's name — stayed in English, because a useMemo
+   keyed on the language had nothing to recompute against. That is the RTL bug in a new place,
+   and this is the one signal that closes it everywhere at once. */
+const listeners = new Set();
+
+export function onLangPack(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
 export function langReady(lang) {
   return lang === 'en' || !!(window.GVP_LANG && window.GVP_LANG[lang]);
@@ -37,7 +45,11 @@ export function langReady(lang) {
 export function ensureLang(lang) {
   if (langReady(lang)) return Promise.resolve();
   if (!loaders[lang]) return Promise.resolve();
-  if (!pending[lang]) pending[lang] = loaders[lang]().catch(() => {});
+  if (!pending[lang]) {
+    pending[lang] = loaders[lang]()
+      .catch(() => {})
+      .then(() => { listeners.forEach((fn) => fn(lang)); });
+  }
   return pending[lang];
 }
 
@@ -70,4 +82,26 @@ export function stateFor({ name, niche, style, lang, full }) {
 
 export function renderPage({ name, niche, style, lang, full }) {
   return G.page(style, stateFor({ name, niche, style, lang, full }), !full);
+}
+
+/* ------------------------------------------------------------------ plain text */
+/* The engine's copy is written for innerHTML: &#8362; for the shekel, &ndash;, <br>.
+   React prints text, not markup, so anything of the engine's that reaches a React node has
+   to come through here first — otherwise the price of a haircut reads "&#8362;70".
+   The input is always our own constant strings; a textarea's innerHTML decodes entities and
+   runs nothing. */
+const decoder = typeof document !== 'undefined' ? document.createElement('textarea') : null;
+
+export function plain(s) {
+  const src = String(s == null ? '' : s);
+  if (!decoder) return src;
+  decoder.innerHTML = src.replace(/<br\s*\/?>/gi, ' · ').replace(/<[^>]*>/g, '');
+  return decoder.value.replace(/\s+/g, ' ').trim();
+}
+
+/* "₪70" -> 70, for a demo basket's total. Anything without a number counts as nothing. */
+export function priceNumber(s) {
+  const m = plain(s).replace(/[^\d.]/g, '');
+  const n = parseFloat(m);
+  return isNaN(n) ? 0 : n;
 }

@@ -11,23 +11,34 @@ export const BRAND = 'GenVidPro';
    is here so the first poster has nowhere else to look. */
 export const WATERMARK = '@GenVidPro';
 
-/* Packages shown under the app button, the same three as genvidpro.com/apps. */
+/* The three packages, the same three as genvidpro.com/apps. `key`/`line` point at the words
+   in src/gvpro/ui.js, so a package reads in whichever of the four languages is on screen. */
 export const APP_TIERS = [
-  { id: 'start', price: 2900 },
-  { id: 'business', price: 5900 },
-  { id: 'pro', price: 9900, from: true },
+  { id: 'start', price: 2900, key: 'pkgStart', line: 'pkgStartLine' },
+  { id: 'business', price: 5900, key: 'pkgBusiness', line: 'pkgBusinessLine' },
+  { id: 'pro', price: 9900, from: true, key: 'pkgPro', line: 'pkgProLine' },
 ];
+
+/* 2900 -> "2,900". The shekel sign goes in front in every language the app speaks. */
+export function priceText(n) {
+  return '\u20AA' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/* Which of the two an app for this trade is really about. A bakery takes orders; everyone
+   else takes bookings. The tab's own word comes from the engine (K.bookShort), already
+   translated and already niche-correct — this only decides which of our own lines to use. */
+const ORDERING = ['bakery'];
+export function isOrdering(niche) { return ORDERING.indexOf(niche) >= 0; }
 
 /* The tag the agent reads to know which of the two buttons was pressed. */
 export function waTag(want) { return want === 'app' ? 'gvpro_app' : 'gvpro_site'; }
 
 /* wa.me carries the whole lead in the first line, so the agent opens on the right foot
    even when the visitor never says anything else. */
-export function waLink({ want, opener, businessName, niche, style, lang }) {
-  const lines = [
-    opener + (businessName ? ': ' + businessName : ''),
-    [waTag(want), 'niche ' + niche, 'style ' + style, 'lang ' + lang].join(' · '),
-  ];
+export function waLink({ want, opener, businessName, niche, style, lang, pkg }) {
+  const tail = [waTag(want), 'niche ' + niche, 'style ' + style, 'lang ' + lang];
+  if (want === 'app' && pkg) tail.push('package ' + pkg);
+  const lines = [opener + (businessName ? ': ' + businessName : ''), tail.join(' · ')];
   return 'https://wa.me/' + WA_AGENT + '?text=' + encodeURIComponent(lines.join('\n'));
 }
 
