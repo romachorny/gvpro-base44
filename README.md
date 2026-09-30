@@ -3,11 +3,18 @@
 The port of **GVPro** — the app behind app.genvidpro.com — onto Base44, at
 https://gvpro.base44.app.
 
-Type the name of a business, tap a trade, and its possible sites are already on the phone in
-front of you, with that name on them, while you type. Five niches × twelve styles = sixty
-pages, every one of them drawn by the real template engine inside an `iframe srcdoc`, never a
-picture of a site. Share what you are looking at as a link; order it with one of the two
-buttons under it.
+Type the name of a business, tap a trade, and it is already on the phone in front of you, with
+that name on it, while you type. Five niches × twelve styles = sixty pages, every one of them
+drawn by the real template engine inside an `iframe srcdoc`, never a picture of a site.
+
+**The app is the product.** The Site / App toggle over the carousel flips the same style from a
+site into an app running inside a phone: a tab bar along the bottom, a booking or order sheet
+that really works on fake slots, an install chip. Under it, the red full-width button is "I want
+an app" — it opens a screen that says what that app does for this trade and what the three
+packages cost before it asks anybody for a phone number. "I want this site" is the quieter
+button under it.
+
+Share what you are looking at as a link, either side of the toggle; the link carries the mode.
 
 **This repo is a delivery, not a deployment.** Every path here is the path the file has to take
 inside the Base44 app. [MANIFEST.md](MANIFEST.md) says which files to write, which scaffold
