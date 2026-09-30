@@ -1,0 +1,9 @@
+{
+  "name": "GVPro — your idea, your app",
+  "short_name": "GVPro",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07060A",
+  "theme_color": "#07060A",
+  "description": "Type your business name and see your site on a phone in seconds."
+}
