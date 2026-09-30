@@ -127,11 +127,15 @@
   font-size: 16px; font-weight: 700; transition: filter .15s, box-shadow .15s, background .15s;
 }
 .gv-btn:disabled { opacity: .5; pointer-events: none; }
-.gv-primary { background: var(--acc); color: var(--acc-ink); box-shadow: 0 6px 18px rgba(15, 23, 42, .12); }
-.gv-primary:hover { filter: brightness(1.06); }
-.gv-quiet { background: var(--card); color: var(--ink); border: 1px solid var(--border); min-height: 44px; font-size: 15px; }
-.gv-quiet:hover { border-color: var(--acc-line); }
-.gv-link { background: none; border: 0; color: var(--acc); font-weight: 600; font-size: 14px; padding: 4px 0; width: auto; min-height: 0; }
+/* Эти три правила обязаны быть весомее `.gv button { color: inherit }` выше: у того
+   селектора специфичность (0,1,1), у голого класса — (0,1,0), и без `.gv` впереди
+   синяя кнопка брала `--ink` вместо `--acc-ink`. Получалось тёмное по синему,
+   контраст 1.93:1 на главной кнопке, и ссылка «назад» переставала быть синей. */
+.gv .gv-primary { background: var(--acc); color: var(--acc-ink); box-shadow: 0 6px 18px rgba(15, 23, 42, .12); }
+.gv .gv-primary:hover { filter: brightness(1.06); }
+.gv .gv-quiet { background: var(--card); color: var(--ink); border: 1px solid var(--border); min-height: 44px; font-size: 15px; }
+.gv .gv-quiet:hover { border-color: var(--acc-line); }
+.gv .gv-link { background: none; border: 0; color: var(--acc); font-weight: 600; font-size: 14px; padding: 4px 0; width: auto; min-height: 0; }
 
 .gv-gift {
   display: flex; align-items: flex-start; gap: 8px; margin-top: 10px;
